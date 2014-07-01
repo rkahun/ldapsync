@@ -1,0 +1,407 @@
+
+. ./ldap-sync_params
+
+### SQL
+
+function sql_get_user_id() {
+  username="$1"
+  echo -ne "${SQLHEAD}\nselect id from user_ where username='$username';\n" |\
+    sqlplus -S "$SQLCONN" | sed -re 's/\s*//g' -e '/^$/d'
+}
+
+### LDAP
+
+function ldap_connect_test() {
+  BINDURL="$1"
+  BINDDN="$2"
+  BINDPW="$3"
+  BASE="$4"
+  curl -su "${BINDDN}:${BINDPW}" "${BINDURL}${BASE}?dn?base" >/dev/null 2>&1 ; ret=$?
+  return $ret
+}
+
+function ldap_search_ldif() {
+  BINDURL="$1"
+  BINDDN="$2"
+  BINDPW="$3"
+  BASE="$4"
+  SCOPE="$5"
+  FILTER="$6"
+
+  curl -su "${BINDDN}:${BINDPW}" "${BINDURL}${BASE}?sAMAccountName,userPrincipalName,givenName,sn,title,displayName,mail,telephoneNumber,mobile?${SCOPE}?${FILTER}"
+
+}
+
+function ldap_search_convert() {
+    sed -r -e 's/^DN: /dn="/' -e '/^\t/ s/\t(\w+): /\1="/' -e '/="/ s/(.*)$/\1"/' -e '/^$/d' -e '/^dn=/i \\' |\
+    sed -e '1{/^$/d}' -e '$a \\'
+}
+
+function ldap_search() {
+  BINDURL="$1"
+  BINDDN="$2"
+  BINDPW="$3"
+  BASE="$4"
+  SCOPE="$5"
+  FILTER="$6"
+
+  ldap_search_ldif "$BINDURL" "$BINDDN" "$BINDPW" "$BASE" "$SCOPE" "$FILTER" |\
+    ldap_search_convert
+}
+
+
+### MAIN
+
+function loop_create_users() {
+  BINDURL="$1"
+  BINDDN="$2"
+  BINDPW="$3"
+  BASE="$4"
+  SCOPE="$5"
+  FILTER="$6"
+  REALM="$7"
+  sAMAccountName="---"; userPrincipalName="---"; givenName="---"; sn="---";
+  title="---"; displayName="---"; mail="---"; telephoneNumber="---"; mobile="---"
+
+  PIDU="$(get_profile_id "User")"
+  ROLE="${ROLE:-member}"
+  RID="$(get_role_id "$ROLE")"
+  GID="$(get_group_id "$GROUP")"
+ 
+  ldap_connect_test "$BINDURL" "$BINDDN" "$BINDPW" "$BASE" || { echo "FATAL: LDAP error"; return 1; }
+  ldap_search "$BINDURL" "$BINDDN" "$BINDPW" "$BASE" "$SCOPE" "$FILTER" |\
+  while read line
+  do
+    if test -z "$line"
+    then
+      if true
+      then
+        # TODO
+        # check sAMAccountName in exclude list
+        create_user_by_api "${sAMAccountName}@${REALM}" "$userPrincipalName" "$givenName" "$sn" \
+                           "$title" "$displayName" "$mail" "$telephoneNumber" "$mobile"
+      fi
+      sAMAccountName="---"; userPrincipalName="---"; givenName="---"; sn="---";
+      title="---"; displayName="---"; mail="---"; telephoneNumber="---"; mobile="---"
+    else
+      eval $line
+    fi
+  done
+}
+
+function loop_create_users_fromfile() {
+  file="$1"
+
+  PIDU="$(get_profile_id "User")"
+  ROLE="${ROLE:-member}"
+  RID="$(get_role_id "$ROLE")"
+  GID="$(get_group_id "$GROUP")"
+
+  ldap_search_convert < "$file" |\
+  while read line
+  do
+    if test -z "$line"
+    then
+      if true
+      then
+        # TODO
+        # check sAMAccountName in exclude list
+        create_user_by_api "${sAMAccountName}@${REALM}" "$userPrincipalName" "$givenName" "$sn" \
+                           "$title" "$displayName" "$mail" "$telephoneNumber" "$mobile"
+      fi
+      sAMAccountName="---"; userPrincipalName="---"; givenName="---"; sn="---";
+      title="---"; displayName="---"; mail="---"; telephoneNumber="---"; mobile="---"
+    else
+      eval $line
+    fi
+  done
+}
+
+function create_user_by_api() {
+  userName="$(tr '[A-Z]' '[a-z]' <<<$1)"
+  userPrincipal="$2"
+  first_name="$3"
+  last_name="$4"
+  title="$5"
+  job_title="$6"
+  pro_email="$7"
+  pro_phone="$8"
+  pro_mobile="$9"
+
+  if test $DEMO == 1
+  then
+    echo ""
+    echo "userName:$userName"
+    echo "userPrincipal:$2"
+    echo "first_name:$3"
+    echo "last_name:$4"
+    echo "title:$5"
+    echo "job_title:$6"
+    echo "pro_email:$7"
+    echo "pro_phone:$8"
+    echo "pro_mobile:$9"
+    echo ""
+    echo create_user "$userName" "$userName" "$first_name" "$last_name" "$title" "$job_title"
+    echo add_user_profile \""$id"\" \""$PIDU"\"
+    echo add_user_membership \""$id"\" \""$GID"\" \""$RID"\"
+    echo chg_pro_data "$id" "{\"id\":\"$id\",\"email\":\"$pro_email\",\"phone_number\":\"$pro_phone\",\"mobile_number\":\"$pro_mobile\"}"
+  else
+
+
+    test "$title" == "---" && title=""
+    test "$job_title" == "---" && job_title=""
+    test "$pro_email" == "---" && pro_email=""
+    test "$pro_phone" == "---" && pro_phone=""
+    test "$pro_mobile" == "---" && pro_mobile=""
+
+    id="$(create_user "$userName" "$userName" "$first_name" "$last_name" "$title" "$job_title")"
+
+    if test $id -eq $id 1>/dev/null 2>&1
+    then
+      # have been created
+      echo "INFO: Created $userName as ${id}."
+      # add User profile
+      add_user_profile "$id" "$PIDU"
+      # add default membership
+      if test $GID -eq $GID -a $RID -eq $RID 1>/dev/null 2>&1
+      then
+        add_user_membership "$id" "$GID" "$RID"
+      fi
+      # add professional data
+      payload="{\"id\":\"$id\",\"email\":\"$pro_email\",\"phone_number\":\"$pro_phone\",\"mobile_number\":\"$pro_mobile\"}"
+      chg_pro_data "$id" "$payload"
+    else
+      echo "ERROR: $userName is not created" 
+      echo -n "DEBUG: Got an error while creating ${userName}, message: "
+      echo "$id" | sed -re 's/.*\,\"message\":\"([^\"]+)\".*/\1/'
+
+      # update had created user
+      id="$(sql_get_userid "$userName")"
+      if test $id -eq $id 1>/dev/null 2>&1
+      then
+        echo "INFO: Update pro_data of ${userName}(${id})."
+        payload="{\"id\":\"$id\",\"email\":\"$pro_email\",\"phone_number\":\"$pro_phone\",\"mobile_number\":\"$pro_mobile\"}"
+        chg_pro_data "$id" "$payload"
+      fi
+    fi
+  fi
+}
+
+
+function loop_group_membership() {
+  BINDURL="$1"
+  BINDDN="$2"
+  BINDPW="$3"
+  BASE="$4"
+  SCOPE="$5"
+  FILTER="$6"
+  REALM="$7"
+  GROUP="$8"
+
+  gid="$(get_group_id "$GROUP")"
+  rid="$(get_role_id "$ROLE")"
+ 
+  # get members
+  curl -su "${BINDDN}:${BINDPW}" "${BINDURL}${BASE}?member" |\
+    sed -rne '/\s+member:/ s/.*member:\s(.*)$/\1/p' |\
+  while read cn
+  do
+    uid="$(curl -su "${BINDDN}:${BINDPW}" "${BINDURL}${cn}?sAMAccountName" |\
+      sed -rne "/\s+sAMAccountName:/ s/.*sAMAccountName:\s(.*)$/\L\1@$REALM/p")"
+    id="$(get_user_id "$uid")"
+    if test $id -eq $id -a $gid -eq $gid -a $rid -eq $rid  2>/dev/null
+    then
+      echo "INFO: $(add_user_membership "$id" "$gid" "$rid")"
+    else
+      echo "ERROR: Can't get GroupID or RoleID" ; return 1;
+    fi
+  done
+}
+
+### API
+
+# login $username $password
+function portal_login() {
+  test -f cookie.txt && rm cookie.txt 
+  username="$1"
+  password="$2"
+  API="$URL/loginservice"
+  DATA="username=${username}&password=${password}&redirect=false&_l=en_US&submit=Login"
+  curl -skL -c "cookie.txt" -X POST --data "$DATA" "${API}?"
+}
+
+# logout
+function portal_logout() {
+  API="$URL/logoutservice"
+  DATA="redirect=false"
+  curl -skL -c "cookie.txt" -X GET --data "$DATA" "${API}?" 1 > /dev/null \
+    && rm cookie.txt 
+}
+
+# create_user $username $password $givenName $sn
+function create_user() {
+  username="$1"
+  password="$2"
+  givenName="$3"
+  sn="$4"
+  title="$5"
+  job_title="$6"
+  API="$URL/API/identity/user"
+  JSON="{\"userName\":\"$username\",\"password\":\"$password\",\"password_confirm\":\"$password\",\"enabled\":\"true\",\"firstname\":\"$givenName\",\"lastname\":\"$sn\",\"title\":\"$title\",\"job_title\":\"$job_title\"}"
+  curl -skL -b "cookie.txt" -H 'Content-Type: application/json; charset="utf-8"' -X POST --data "$JSON" "$API" |\
+    sed -re 's/.*\,\"id\":\"([0-9]+)\"\,.*/\1/'
+}
+
+# get_user $id
+function get_user() {
+  id="$1"
+  API="$URL/API/identity/user/$id"
+  curl -skL -b "cookie.txt" -X GET "$API"
+}
+
+# delete_user $id
+function delete_user() {
+  id="$1"
+  API="$URL/API/identity/user"
+  JSON="[\"$id\"]"
+  curl -skL -b "cookie.txt" -H 'Content-Type: application/json; charset="utf-8"' -X DELETE --data "$JSON" "$API" |\
+    sed -r -e '/exception/ s/.*\,\"message\":\"([^\"]+)\".*/Exception: \1/' -e '/xception/! s/(.*)/OK: \1/'
+}
+
+# chg_user $id $user
+function chg_user() {
+  id="$1"
+  username="$2"
+  API="$URL/API/identity/user/$id"
+  JSON="{\"userName\":\"$username\"}"
+  curl -skL -b "cookie.txt" -H 'Content-Type: application/json; charset="utf-8"' -X PUT --data "$JSON" "$API"
+}
+
+# chgpass_user $id $password
+function chgpass_user() {
+  id="$1"
+  password="$2"
+  API="$URL/API/identity/user/$id"
+  JSON="{\"password\":\"$password\"}"
+  curl -skL -b "cookie.txt" -H 'Content-Type: application/json; charset="utf-8"' -X PUT --data "$JSON" "$API"
+}
+
+# get_pro_data
+function get_pro_data() {
+  id="$1"
+  API="$URL/API/identity/professionalcontactdata/$id"
+  curl -skL -b "cookie.txt" -X GET "$API"
+}
+
+# chg_pro_data $id $payload
+function chg_pro_data() {
+  id="$1"
+  JSON="$2"
+  API="$URL/API/identity/professionalcontactdata/$id"
+  curl -skL -b "cookie.txt" -H 'Content-Type: application/json; charset="utf-8"' -X PUT --data "$JSON" "$API"
+}
+
+function get_profile_id() {
+  name="$(url_encode "$1")"
+  API="$URL/API/userXP/profile?f=name=$name"
+  curl -skL -b "cookie.txt" -H 'Content-Type: application/x-www-form-urlencoded; charset="utf-8"' -X GET "$API" |\
+    sed -re 's/.*\"id\":\"([0-9]+)\"\,.*/\1/'
+}
+
+function get_user_id() {
+  name="$(url_encode "$1")"
+  API="$URL/API/identity/user?f=userName=$name"
+  curl -skL -b "cookie.txt" -H 'Content-Type: application/x-www-form-urlencoded; charset="utf-8"' -X GET "$API" |\
+    sed -re 's/.*\"id\":\"([0-9]+)\"\,.*/\1/'
+}
+
+function get_role_id() {
+  name="$(url_encode "$1")"
+  API="$URL/API/identity/role?f=name=$name"
+  curl -skL -b "cookie.txt" -H 'Content-Type: application/x-www-form-urlencoded; charset="utf-8"' -X GET "$API" |\
+    sed -re 's/.*\"id\":\"([0-9]+)\"\,.*/\1/'
+}
+
+function get_group_id() {
+  name="$(url_encode "$1")"
+  API="$URL/API/identity/group?f=name=$name"
+  curl -skL -b "cookie.txt" -H 'Content-Type: application/x-www-form-urlencoded; charset="utf-8"' -X GET "$API" |\
+    sed -re 's/.*\"id\":\"([0-9]+)\"\,.*/\1/'
+}
+
+function create_role() {
+  name="$(url_encode "$1")"
+  API="$URL/API/identity/role?f=name=$name"
+  JSON="{\"name\":\"$name\"}"
+  curl -skL -b "cookie.txt" -H 'Content-Type: application/json; charset="utf-8"' -X POST --data "$JSON" "$API" |\
+    sed -r -e '/exception/ s/.*\,\"message\":\"([^\"]+)\".*/Exception: \1/' -e '/xception/! s/(.*)/OK: \1/'
+}
+
+function add_user_profile() {
+  id="$1"
+  pid="$2"
+  mtype="${3:-USER}"
+  API="$URL/API/userXP/profileMember"
+  JSON="{\"profile_id\":\"$pid\",\"member_type\":\"$mtype\",\"user_id\":\"$id\"}"
+  curl -skL -b "cookie.txt" -H 'Content-Type: application/json; charset="utf-8"' -X POST --data "$JSON" "$API" |\
+    sed -r -e '/exception/ s/.*\,\"message\":\"([^\"]+)\".*/Exception: \1/' -e '/xception/! s/(.*)/OK: \1/'
+}
+
+function add_user_membership() {
+  id="$1"
+  gid="$2"
+  rid="$3"
+  API="$URL/API/identity/membership"
+  JSON="{\"user_id\":\"$id\",\"group_id\":\"$gid\",\"role_id\":\"$rid\"}"
+  curl -skL -b "cookie.txt" -H 'Content-Type: application/json; charset="utf-8"' -X POST --data "$JSON" "$API" |\
+    sed -r -e '/exception/ s/.*\,\"message\":\"([^\"]+)\".*/Exception: \1/' -e '/xception/! s/(.*)/OK: \1/'
+}
+
+function delete_user_membership() {
+  id="$1"
+  gid="$2"
+  rid="$3"
+  API="$URL/API/identity/membership"
+  JSON="{\"user_id\":\"$id\",\"group_id\":\"$gid\",\"role_id\":\"$rid\"}"
+  curl -skL -b "cookie.txt" -H 'Content-Type: application/json; charset="utf-8"' -X DELETE --data "$JSON" "$API" |\
+    sed -r -e '/exception/ s/.*\,\"message\":\"([^\"]+)\".*/Exception: \1/' -e '/xception/! s/(.*)/OK: \1/'
+}
+
+function test_it() {
+  ROLE="$TESTROLE"
+  GROUP="$TESTGROUP"
+  SUFFIX="$RANDOM"
+
+  portal_login $USER $PASS
+  pidu="$(get_profile_id "User")"
+  echo "PIDU: $pidu"
+  gid="$(get_group_id "$GROUP")"
+  echo "GROUP name: \"$GROUP\", id: $gid"
+  rid="$(get_role_id "$ROLE")"
+  echo "ROLE name: \"$ROLE\", id: $rid"
+  test $pidu -eq $pidu -a $gid -eq $gid -a $rid -eq $rid 2>/dev/null || { echo "ERROR: Can't get IDs" ; return 1; }
+  echo "PASS: Got IDs"
+
+  id="$(create_user "rkatest_${SUFFIX}@example.com" "rkatest_${SUFFIX}@example.com" "Test ${SUFFIX}" "Rka" "title" "job_title")"
+  if test $id -eq $id 2>/dev/null
+  then
+    echo "Created user: username: rkatest_${SUFFIX}@example.com, user_id: $id"
+    echo "Add profile: $(add_user_profile "$id" "$pidu")"
+    echo "Add membership: $(add_user_membership "$id" "$gid" "$rid")"
+    echo "GET user: $(get_user $id)"
+    sleep 10
+    echo "DELETE user: $(delete_user $id)"
+  else
+    echo "ERROR: $id"
+  fi
+  portal_logout
+}
+
+
+# TOOL
+
+function url_encode() {
+  uri="$1"
+  perl -MURI::Escape -e 'print uri_escape($ARGV[0]);' "$uri"
+}
+

@@ -1,0 +1,24 @@
+
+# BONITA SERVER URL
+SERVER="changeme.bonita.example.com"
+URL="https://$SERVER:8443/bonita"
+
+# BONITA API
+USER="changeme"
+PASS="changeme"
+
+# BONITA DATABASE (TNS based)
+DBSID="changeme"
+DBUSER="changeme"
+DBPASS="changeme"
+
+# Parameters of test user
+TESTGROUP="Changeme Users"
+TESTROLE="user"
+
+# DO NOT MODIFY BELOW THIS LINE
+#
+SQLCONN="${DBUSER}/${DBPASS}@${DBSID}"
+SQLHEAD="set pagesize 50000 tab off echo off trim on heading off feedback off"
+export LANG="en_US.UTF-8"
+

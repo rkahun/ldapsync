@@ -1,0 +1,64 @@
+#!/bin/bash
+#set -x
+
+# DEMO mode, if DEMO=1
+DEMO=1
+# LDAP REALM
+REALM="example.com"
+# LDAP URL
+BINDURL='ldap://example.com:389/'
+BINDDN='EXAMPLE\_serviceUser' 
+BINDPW='PaSsWoRd'
+# LDAP scope (one|sub)
+SCOPE='one'
+# LDAP search filter
+FILTER='(&(objectClass=user)(objectClass=person)(userPrincipalname=*)(!(sAMAccountName=_*))(sAMAccountName=*)(sn=*)(givenName=*)(mail=*))'
+
+# Default Bonita group
+GROUP="EXAMPLE Users"
+# Default Bonita role (user)
+ROLE="member"
+
+. ./ldap-sync_functions
+
+function sync_users() {
+  for BASE in \
+    'OU=Users,DC=example,,DC=com' 
+  do
+    loop_create_users "$BINDURL" "$BINDDN" "$BINDPW" "$BASE" "$SCOPE"  "$FILTER" "$REALM"
+  done
+}
+
+# group
+function sync_groups() {
+  SCOPE='one'
+  FILTER=''
+  for GROUP in \
+    'Example Group:CN=Example Group,OU=Groups,DC=example,DC=com' \
+    'Sample Group:CN=Sample Group,OU=Groups,DC=example,DC=com'
+  do
+    BASE="${GROUP##*:}"
+    GROUP="${GROUP%%:*}"
+    echo "INFO: GROUP=$GROUP BASE=$BASE"
+    loop_group_membership "$BINDURL" "$BINDDN" "$BINDPW" "$BASE" "$SCOPE"  "$FILTER" "$REALM" "$GROUP"
+  done
+}
+
+# main loop
+portal_login $USER $PASS
+
+case "$1" in
+  users)
+    sync_users
+    ;;
+  groups)
+    sync_groups
+    ;;
+  all|*)
+    sync_users
+    sync_groups
+    ;;
+esac
+
+portal_logout
+
