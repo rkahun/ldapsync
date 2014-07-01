@@ -8,4 +8,5 @@ It is able to use not just *subtree* scope but ***one-level*** scope, too.
 - dependcies:
  - curl
  - sed (GNU version)
+ - perl (URI::Escape)
 

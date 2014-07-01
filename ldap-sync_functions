@@ -118,7 +118,7 @@ function loop_create_users_fromfile() {
 }
 
 function create_user_by_api() {
-  userName="$(tr '[A-Z]' '[a-z]' <<<$1)"
+  userName="$(sed -re 's/^(.*)$/\L\1/' <<<$1)"
   userPrincipal="$2"
   first_name="$3"
   last_name="$4"
@@ -234,7 +234,7 @@ function portal_login() {
 function portal_logout() {
   API="$URL/logoutservice"
   DATA="redirect=false"
-  curl -skL -c "cookie.txt" -X GET --data "$DATA" "${API}?" 1 > /dev/null \
+  curl -skL -c "cookie.txt" -X GET --data "$DATA" "${API}?" 1>/dev/null \
     && rm cookie.txt 
 }
 
