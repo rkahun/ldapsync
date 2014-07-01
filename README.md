@@ -5,7 +5,7 @@ It is able to use not just *subtree* scope but ***one-level*** scope, too.
 
 - using web REST API
 - implemented in BASH
-- dependcies:
+- dependencies:
  - curl
  - sed (GNU version)
  - perl (URI::Escape)
