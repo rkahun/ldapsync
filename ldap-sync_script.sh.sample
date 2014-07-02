@@ -23,7 +23,7 @@ ROLE="member"
 
 function sync_users() {
   for BASE in \
-    'OU=Users,DC=example,,DC=com' 
+    'OU=Users,DC=example,DC=com' 
   do
     loop_create_users "$BINDURL" "$BINDDN" "$BINDPW" "$BASE" "$SCOPE"  "$FILTER" "$REALM"
   done
@@ -45,7 +45,7 @@ function sync_groups() {
 }
 
 # main loop
-portal_login $USER $PASS
+portal_login "$USER" "$PASS"
 
 case "$1" in
   users)

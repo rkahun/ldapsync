@@ -3,7 +3,7 @@
 
 ### SQL
 
-function sql_get_user_id() {
+function sql_get_user_id {
   username="$1"
   echo -ne "${SQLHEAD}\nselect id from user_ where username='$username';\n" |\
     sqlplus -S "$SQLCONN" | sed -re 's/\s*//g' -e '/^$/d'
@@ -11,7 +11,7 @@ function sql_get_user_id() {
 
 ### LDAP
 
-function ldap_connect_test() {
+function ldap_connect_test {
   BINDURL="$1"
   BINDDN="$2"
   BINDPW="$3"
@@ -20,7 +20,7 @@ function ldap_connect_test() {
   return $ret
 }
 
-function ldap_search_ldif() {
+function ldap_search_ldif {
   BINDURL="$1"
   BINDDN="$2"
   BINDPW="$3"
@@ -32,12 +32,12 @@ function ldap_search_ldif() {
 
 }
 
-function ldap_search_convert() {
+function ldap_search_convert {
     sed -r -e 's/^DN: /dn="/' -e '/^\t/ s/\t(\w+): /\1="/' -e '/="/ s/(.*)$/\1"/' -e '/^$/d' -e '/^dn=/i \\' |\
     sed -e '1{/^$/d}' -e '$a \\'
 }
 
-function ldap_search() {
+function ldap_search {
   BINDURL="$1"
   BINDDN="$2"
   BINDPW="$3"
@@ -52,7 +52,7 @@ function ldap_search() {
 
 ### MAIN
 
-function loop_create_users() {
+function loop_create_users {
   BINDURL="$1"
   BINDDN="$2"
   BINDPW="$3"
@@ -89,7 +89,7 @@ function loop_create_users() {
   done
 }
 
-function loop_create_users_fromfile() {
+function loop_create_users_fromfile {
   file="$1"
 
   PIDU="$(get_profile_id "User")"
@@ -117,7 +117,7 @@ function loop_create_users_fromfile() {
   done
 }
 
-function create_user_by_api() {
+function create_user_by_api {
   userName="$(sed -re 's/^(.*)$/\L\1/' <<<$1)"
   userPrincipal="$2"
   first_name="$3"
@@ -128,7 +128,7 @@ function create_user_by_api() {
   pro_phone="$8"
   pro_mobile="$9"
 
-  if test $DEMO == 1
+  if test "$DEMO" == 1
   then
     echo ""
     echo "userName:$userName"
@@ -188,7 +188,7 @@ function create_user_by_api() {
 }
 
 
-function loop_group_membership() {
+function loop_group_membership {
   BINDURL="$1"
   BINDDN="$2"
   BINDPW="$3"
@@ -221,7 +221,7 @@ function loop_group_membership() {
 ### API
 
 # login $username $password
-function portal_login() {
+function portal_login {
   test -f cookie.txt && rm cookie.txt 
   username="$1"
   password="$2"
@@ -231,7 +231,7 @@ function portal_login() {
 }
 
 # logout
-function portal_logout() {
+function portal_logout {
   API="$URL/logoutservice"
   DATA="redirect=false"
   curl -skL -c "cookie.txt" -X GET --data "$DATA" "${API}?" 1>/dev/null \
@@ -239,7 +239,7 @@ function portal_logout() {
 }
 
 # create_user $username $password $givenName $sn
-function create_user() {
+function create_user {
   username="$1"
   password="$2"
   givenName="$3"
@@ -253,14 +253,14 @@ function create_user() {
 }
 
 # get_user $id
-function get_user() {
+function get_user {
   id="$1"
   API="$URL/API/identity/user/$id"
   curl -skL -b "cookie.txt" -X GET "$API"
 }
 
 # delete_user $id
-function delete_user() {
+function delete_user {
   id="$1"
   API="$URL/API/identity/user"
   JSON="[\"$id\"]"
@@ -269,7 +269,7 @@ function delete_user() {
 }
 
 # chg_user $id $user
-function chg_user() {
+function chg_user {
   id="$1"
   username="$2"
   API="$URL/API/identity/user/$id"
@@ -278,7 +278,7 @@ function chg_user() {
 }
 
 # chgpass_user $id $password
-function chgpass_user() {
+function chgpass_user {
   id="$1"
   password="$2"
   API="$URL/API/identity/user/$id"
@@ -287,49 +287,49 @@ function chgpass_user() {
 }
 
 # get_pro_data
-function get_pro_data() {
+function get_pro_data {
   id="$1"
   API="$URL/API/identity/professionalcontactdata/$id"
   curl -skL -b "cookie.txt" -X GET "$API"
 }
 
 # chg_pro_data $id $payload
-function chg_pro_data() {
+function chg_pro_data {
   id="$1"
   JSON="$2"
   API="$URL/API/identity/professionalcontactdata/$id"
   curl -skL -b "cookie.txt" -H 'Content-Type: application/json; charset="utf-8"' -X PUT --data "$JSON" "$API"
 }
 
-function get_profile_id() {
+function get_profile_id {
   name="$(url_encode "$1")"
   API="$URL/API/userXP/profile?f=name=$name"
   curl -skL -b "cookie.txt" -H 'Content-Type: application/x-www-form-urlencoded; charset="utf-8"' -X GET "$API" |\
     sed -re 's/.*\"id\":\"([0-9]+)\"\,.*/\1/'
 }
 
-function get_user_id() {
+function get_user_id {
   name="$(url_encode "$1")"
   API="$URL/API/identity/user?f=userName=$name"
   curl -skL -b "cookie.txt" -H 'Content-Type: application/x-www-form-urlencoded; charset="utf-8"' -X GET "$API" |\
     sed -re 's/.*\"id\":\"([0-9]+)\"\,.*/\1/'
 }
 
-function get_role_id() {
+function get_role_id {
   name="$(url_encode "$1")"
   API="$URL/API/identity/role?f=name=$name"
   curl -skL -b "cookie.txt" -H 'Content-Type: application/x-www-form-urlencoded; charset="utf-8"' -X GET "$API" |\
     sed -re 's/.*\"id\":\"([0-9]+)\"\,.*/\1/'
 }
 
-function get_group_id() {
+function get_group_id {
   name="$(url_encode "$1")"
   API="$URL/API/identity/group?f=name=$name"
   curl -skL -b "cookie.txt" -H 'Content-Type: application/x-www-form-urlencoded; charset="utf-8"' -X GET "$API" |\
     sed -re 's/.*\"id\":\"([0-9]+)\"\,.*/\1/'
 }
 
-function create_role() {
+function create_role {
   name="$(url_encode "$1")"
   API="$URL/API/identity/role?f=name=$name"
   JSON="{\"name\":\"$name\"}"
@@ -337,7 +337,7 @@ function create_role() {
     sed -r -e '/exception/ s/.*\,\"message\":\"([^\"]+)\".*/Exception: \1/' -e '/xception/! s/(.*)/OK: \1/'
 }
 
-function add_user_profile() {
+function add_user_profile {
   id="$1"
   pid="$2"
   mtype="${3:-USER}"
@@ -347,7 +347,7 @@ function add_user_profile() {
     sed -r -e '/exception/ s/.*\,\"message\":\"([^\"]+)\".*/Exception: \1/' -e '/xception/! s/(.*)/OK: \1/'
 }
 
-function add_user_membership() {
+function add_user_membership {
   id="$1"
   gid="$2"
   rid="$3"
@@ -357,7 +357,7 @@ function add_user_membership() {
     sed -r -e '/exception/ s/.*\,\"message\":\"([^\"]+)\".*/Exception: \1/' -e '/xception/! s/(.*)/OK: \1/'
 }
 
-function delete_user_membership() {
+function delete_user_membership {
   id="$1"
   gid="$2"
   rid="$3"
@@ -367,7 +367,7 @@ function delete_user_membership() {
     sed -r -e '/exception/ s/.*\,\"message\":\"([^\"]+)\".*/Exception: \1/' -e '/xception/! s/(.*)/OK: \1/'
 }
 
-function test_it() {
+function test_it {
   ROLE="$TESTROLE"
   GROUP="$TESTGROUP"
   SUFFIX="$RANDOM"
@@ -400,7 +400,7 @@ function test_it() {
 
 # TOOL
 
-function url_encode() {
+function url_encode {
   uri="$1"
   perl -MURI::Escape -e 'print uri_escape($ARGV[0]);' "$uri"
 }
