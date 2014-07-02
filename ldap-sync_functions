@@ -218,6 +218,41 @@ function loop_group_membership {
   done
 }
 
+function loop_group_membership_fromfile {
+  file="$1"
+
+  gid=0; rid=0;
+  while read line
+  do
+    case "$line" in
+      *#*)
+        echo '' >/dev/null
+        ;;
+      *@*)
+        if test $gid -gt 0 -a $rid -gt 0
+        then
+          uid="$(sed -re 's/(.*)/\L\1/' <<<$line)"
+          id="$(get_user_id "$uid")"
+          if test $id -eq $id -a $gid -eq $gid -a $rid -eq $rid  2>/dev/null
+          then
+            echo "INFO: $(add_user_membership "$id" "$gid" "$rid")"
+          else
+            echo "ERROR: Can't get GroupID or RoleID" ; return 1;
+          fi
+        fi
+        ;;
+      *)
+        GROUP="${line%%:*}"
+        ROLE="${line##*:}"
+        test "$ROLE" == "$GROUP" && ROLE='member'
+        gid="$(get_group_id "$GROUP")"
+        rid="$(get_role_id "$ROLE")"
+        ;;
+    esac
+  done < "$file"
+}
+
+
 ### API
 
 # login $username $password

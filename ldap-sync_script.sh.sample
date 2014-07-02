@@ -21,7 +21,7 @@ ROLE="member"
 
 . ./ldap-sync_functions
 
-function sync_users() {
+function sync_users {
   for BASE in \
     'OU=Users,DC=example,DC=com' 
   do
@@ -30,7 +30,7 @@ function sync_users() {
 }
 
 # group
-function sync_groups() {
+function sync_groups {
   SCOPE='one'
   FILTER=''
   for GROUP in \
@@ -44,6 +44,14 @@ function sync_groups() {
   done
 }
 
+# user-group-membership from file
+function sync_groups_fromfile {
+  file="$1"
+  test -f "$file" || { echo "ERROR: File not found: $file"; return 1; }
+    loop_group_membership_fromfile "$file"
+}
+
+
 # main loop
 portal_login "$USER" "$PASS"
 
@@ -53,6 +61,9 @@ case "$1" in
     ;;
   groups)
     sync_groups
+    ;;
+  groupfile)
+    test "$#" -eq 2 && sync_groups_fromfile "$2"
     ;;
   all|*)
     sync_users
