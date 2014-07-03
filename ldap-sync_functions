@@ -176,7 +176,7 @@ function create_user_by_api {
       echo "$id" | sed -re 's/.*\,\"message\":\"([^\"]+)\".*/\1/'
 
       # update had created user
-      id="$(sql_get_userid "$userName")"
+      id="$(get_user_id "$userName")"
       if test $id -eq $id 1>/dev/null 2>&1
       then
         echo "INFO: Update pro_data of ${userName}(${id})."
