@@ -2,15 +2,16 @@
 # definitions
 # ^[^@]+$  - does not have @ -- group and role
 # ^(.*):(.*)$ - has : -- group and role
-# ^([^:@]+)$ - does not have @ neither : -- group and member role
+# ^([^:@]+)$ - does not have @ neither : -- group and "member" as default role
 # must have a group definition before user list
 # user list able to have many lines, each line contains one user
 #
 # GROUP ONE:ROLE
 # user1@realm
 # user2@realm
-# user3@realm2
 # GROUP2:ROLE2
+# user3@realm2
+# GROUP3
 # user1@realm
 # user999@realm3
 # 
