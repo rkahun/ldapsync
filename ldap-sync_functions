@@ -45,8 +45,14 @@ function ldap_search {
   SCOPE="$5"
   FILTER="$6"
 
-  ldap_search_ldif "$BINDURL" "$BINDDN" "$BINDPW" "$BASE" "$SCOPE" "$FILTER" |\
-    ldap_search_convert
+  PR="${MAXPR:-20000}"
+  # ldap_search_ldif "$BINDURL" "$BINDDN" "$BINDPW" "$BASE" "$SCOPE" "$FILTER" |\
+  #  ldap_search_convert
+  /usr/bin/ldapsearch -LLL -H "${BINDURL}" -D "${BINDDN}" -w "${BINDPW}" \
+    -b "${BASE}" -s "${SCOPE}" -E "pr=${PR}/noprompt" "${FILTER}" \
+    sAMAccountName userPrincipalName givenName sn title displayName mail telephoneNumbe mobile |\
+    perl -MMIME::Base64 -n -00 -e 's/\n //g;s/(?<=:: )(\S+)/decode_base64($1)/eg;print' |\
+    sed -re 's/^dn::? /dn="/' -e 's/^\t?(\w+)::? /\1="/' -e '/="/ s/(.*)$/\1"/' -e '/^#/d'
 }
 
 
@@ -255,8 +261,13 @@ function loop_group_membership_fromfile {
 
 ### API
 
+function portal_connect_test {
+  curl -sk "${URL}" 1>/dev/null
+}
+
 # login $username $password
 function portal_login {
+  portal_connect_test || { ret=$?; echo "FATAL: HTTPD error"; return $ret; }
   test -f cookie.txt && rm cookie.txt 
   username="$1"
   password="$2"

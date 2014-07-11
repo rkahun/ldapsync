@@ -53,7 +53,7 @@ function sync_groups_fromfile {
 
 
 # main loop
-portal_login "$USER" "$PASS"
+portal_login "$USER" "$PASS" || exit 1;
 
 case "$1" in
   users)
