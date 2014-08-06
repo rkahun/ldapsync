@@ -52,7 +52,7 @@ function ldap_search {
     -b "${BASE}" -s "${SCOPE}" -E "pr=${PR}/noprompt" "${FILTER}" \
     sAMAccountName userPrincipalName givenName sn title displayName mail telephoneNumbe mobile |\
     perl -MMIME::Base64 -n -00 -e 's/\n //g;s/(?<=:: )(\S+)/decode_base64($1)/eg;print' |\
-    sed -re 's/^dn::? /dn="/' -e 's/^\t?(\w+)::? /\1="/' -e '/="/ s/(.*)$/\1"/' -e '/^#/d'
+    sed -r -e 's/^dn::? /dn="/' -e 's/^\t?(\w+)::? /\1="/' -e '/="/ s/(.*)$/\1"/' -e '/^#/d'
 }
 
 
@@ -185,6 +185,9 @@ function create_user_by_api {
       id="$(get_user_id "$userName")"
       if test $id -eq $id 1>/dev/null 2>&1
       then
+        echo "INFO: Update user_data of ${userName}(${id})."
+        payload="{\"firstname\":\"$givenName\",\"lastname\":\"$sn\",\"title\":\"$title\",\"job_title\":\"$job_title\"}"
+        chg_user_data "$id" "$payload"
         echo "INFO: Update pro_data of ${userName}(${id})."
         payload="{\"id\":\"$id\",\"email\":\"$pro_email\",\"phone_number\":\"$pro_phone\",\"mobile_number\":\"$pro_mobile\"}"
         chg_pro_data "$id" "$payload"
@@ -320,6 +323,14 @@ function chg_user {
   username="$2"
   API="$URL/API/identity/user/$id"
   JSON="{\"userName\":\"$username\"}"
+  curl -skL -b "cookie.txt" -H 'Content-Type: application/json; charset="utf-8"' -X PUT --data "$JSON" "$API"
+}
+
+# chg_user_data $id $payload
+function chg_user_data {
+  id="$1"
+  JSON="$2"
+  API="$URL/API/identity/user/$id"
   curl -skL -b "cookie.txt" -H 'Content-Type: application/json; charset="utf-8"' -X PUT --data "$JSON" "$API"
 }
 
